@@ -85,12 +85,14 @@ class TransportNet(nn.Module):
     def __init__(self, in_channels=3, feature_dim=64):
         super().__init__()
 
-        # 特征提取
+        # 特征提取 (带下采样)
         self.features = nn.Sequential(
             nn.Conv2d(in_channels, 32, 3, padding=1),
             nn.ReLU(),
+            nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1),
             nn.ReLU(),
+            nn.MaxPool2d(2),
             nn.Conv2d(64, feature_dim, 3, padding=1),
             nn.ReLU()
         )

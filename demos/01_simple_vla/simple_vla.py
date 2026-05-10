@@ -283,7 +283,7 @@ def train_simple_vla():
 
     # 创建环境和模型
     env = SimpleGridEnv()
-    model = SimpleVLA()
+    model = SimpleVLA(action_dim=2)  # 网格环境只需要2D动作 (dx, dy)
     tokenizer = SimpleTokenizer()
 
     # 收集演示数据
