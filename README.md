@@ -202,6 +202,10 @@ python world_model.py
 5. **[多平台安装手册](docs/Multi_Platform_Installation.md)**：Windows/Linux/macOS/Jetson安装指南
 6. **[硬件连接方案](docs/Hardware_Connection_Guide.md)**：相机、飞控、机载计算机选型与接线
 7. **[数据集与训练](docs/Datasets_and_Training.md)**：数据生成、训练流程、评估方法
+8. **[真实部署指南](docs/Real_World_Deployment.md)**：从仿真到实飞的完整流程
+9. **[API参考手册](docs/API_Reference.md)**：核心模块与接口文档
+10. **[故障排除](docs/Troubleshooting_FAQ.md)**：常见问题与解决方案
+11. **[项目路线图](docs/Project_Roadmap.md)**：开发计划与里程碑
 
 ---
 
