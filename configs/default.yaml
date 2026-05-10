@@ -1,0 +1,75 @@
+# DroneVLA 默认配置
+
+# 模型配置
+model:
+  visual_dim: 256
+  language_dim: 256
+  state_dim: 12
+  state_embed_dim: 128
+  action_dim: 4
+  action_horizon: 8
+  use_world_model: true
+  action_mode: "deterministic"  # "deterministic" 或 "diffusion"
+
+# 视觉编码器配置
+visual_encoder:
+  backbone: "efficientnet_b0"
+  pretrained: true
+  temporal: true
+  num_frames: 4
+
+# 语言编码器配置
+language_encoder:
+  model_name: "bert-base-uncased"
+  freeze: false
+
+# 世界模型配置
+world_model:
+  hidden_dim: 256
+  prediction_horizon: 10
+
+# 训练配置
+training:
+  batch_size: 32
+  learning_rate: 0.0001
+  weight_decay: 0.00001
+  num_epochs: 100
+  gradient_clip: 1.0
+
+  # 学习率调度
+  lr_scheduler:
+    type: "cosine"
+    min_lr: 0.000001
+
+# 环境配置
+environment:
+  task: "hover"  # "hover", "navigate", "track", "avoid"
+  image_obs: true
+  image_size: [64, 64]
+  max_steps: 200
+  boundary: 5.0
+
+# 数据配置
+data:
+  num_demonstrations: 1000
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+
+# 评估配置
+evaluation:
+  num_episodes: 100
+  render: false
+  success_threshold: 0.3
+
+# 日志配置
+logging:
+  log_dir: "logs"
+  save_interval: 10
+  eval_interval: 5
+
+# 设备配置
+device: "cuda"  # "cuda" 或 "cpu"
+
+# 随机种子
+seed: 42
