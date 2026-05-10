@@ -50,7 +50,11 @@ DroneVLA/
 ├── docs/                        # 学习笔记和文档
 │   ├── VLA_Learning_Notes.md    # VLA学习笔记（由浅入深）
 │   ├── World_Model_Survey.md    # 世界模型综述总结
-│   └── Drone_VLA_Guide.md       # 无人机VLA指南
+│   ├── Drone_VLA_Guide.md       # 无人机VLA指南
+│   ├── VLA_Terminology_and_Principles.md  # VLA术语与原理解析
+│   ├── Multi_Platform_Installation.md     # 多平台安装手册
+│   ├── Hardware_Connection_Guide.md       # 硬件连接方案
+│   └── Datasets_and_Training.md           # 数据集与训练指南
 │
 ├── demos/                       # 经典小项目Demo
 │   ├── 01_simple_vla/           # 最简单的VLA示例
@@ -66,6 +70,13 @@ DroneVLA/
 │   ├── environments/            # 无人机环境
 │   │   ├── __init__.py
 │   │   └── drone_env.py         # PyBullet仿真环境
+│   ├── camera/                  # 相机驱动
+│   │   ├── __init__.py
+│   │   ├── camera_base.py       # 相机基类
+│   │   ├── realsense_camera.py  # Intel RealSense
+│   │   ├── oakd_camera.py       # OAK-D相机
+│   │   ├── usb_camera.py        # USB摄像头
+│   │   └── picamera.py          # 树莓派相机
 │   ├── training/                # 训练代码
 │   │   ├── __init__.py
 │   │   └── trainer.py           # 训练器
@@ -76,12 +87,12 @@ DroneVLA/
 │   └── default.yaml             # 默认配置
 │
 ├── scripts/                     # 工具脚本
-│   ├── collect_data.py          # 数据收集
-│   ├── evaluate.py              # 评估脚本
-│   └── export_model.py          # 模型导出
+│   ├── generate_dataset.py      # 合成数据集生成
+│   ├── train.py                 # 训练脚本
+│   └── evaluate.py              # 评估脚本
 │
 ├── tests/                       # 测试代码
-│   └── test_models.py           # 模型测试
+│   └── run_tests.py             # 模型测试（全部通过）
 │
 ├── data/                        # 数据目录
 │   └── demos/                   # 演示数据
@@ -187,6 +198,10 @@ python world_model.py
 1. **[VLA学习笔记](docs/VLA_Learning_Notes.md)**：由浅入深的VLA知识体系
 2. **[世界模型综述](docs/World_Model_Survey.md)**：World Model + VLA的全面总结
 3. **[无人机VLA指南](docs/Drone_VLA_Guide.md)**：面向无人机的VLA实践指南
+4. **[VLA术语与原理](docs/VLA_Terminology_and_Principles.md)**：所有VLA核心概念的通俗解释
+5. **[多平台安装手册](docs/Multi_Platform_Installation.md)**：Windows/Linux/macOS/Jetson安装指南
+6. **[硬件连接方案](docs/Hardware_Connection_Guide.md)**：相机、飞控、机载计算机选型与接线
+7. **[数据集与训练](docs/Datasets_and_Training.md)**：数据生成、训练流程、评估方法
 
 ---
 
