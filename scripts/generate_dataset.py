@@ -262,6 +262,7 @@ def generate_expert_trajectory(
         state[:3] = new_pos
         state[3:6] = new_vel
         state[8] += yaw_action * dt  # yaw角
+        state[9:12] = goal_pos
 
         # 生成图像
         image = generate_synthetic_image(new_pos, goal_pos, obstacles)
@@ -311,6 +312,7 @@ def generate_episode(
     # 初始状态 [x, y, z, vx, vy, vz, roll, pitch, yaw, wx, wy, wz]
     initial_state = np.zeros(12)
     initial_state[:3] = initial_pos
+    initial_state[9:12] = goal_pos
 
     # 选择指令
     instruction = np.random.choice(TASKS[task]["instructions"])

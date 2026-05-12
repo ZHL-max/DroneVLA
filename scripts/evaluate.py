@@ -18,6 +18,48 @@ sys.path.insert(0, '.')
 from src.models.drone_vla import DroneVLA
 
 
+MODEL_CONFIG_KEYS = {
+    "visual_dim", "language_dim", "state_dim", "state_embed_dim",
+    "action_dim", "action_horizon", "use_world_model", "action_mode"
+}
+
+
+def task_goal(initial_pos, task):
+    if task == "hover":
+        return initial_pos.copy()
+    if task == "land":
+        goal = initial_pos.copy()
+        goal[2] = 0.0
+        return goal
+
+    goal_pos = np.random.uniform(2, 18, size=3)
+    goal_pos[2] = np.random.uniform(3, 10)
+    while np.linalg.norm(goal_pos - initial_pos) < 5:
+        goal_pos = np.random.uniform(2, 18, size=3)
+        goal_pos[2] = np.random.uniform(3, 10)
+    return goal_pos
+
+
+def safety_action(state, goal_pos, task):
+    action = np.zeros(4, dtype=np.float32)
+    if task == "hover":
+        action[:3] = np.clip((goal_pos - state[:3]) * 1.5 - state[3:6] * 0.4, -1, 1)
+    elif task == "land":
+        horizontal = goal_pos[:2] - state[:2]
+        action[:2] = np.clip(horizontal * 0.5 - state[3:5] * 0.3, -0.5, 0.5)
+        action[2] = -0.5 if state[2] > 0.5 else 0.0
+    else:
+        action[:3] = np.clip((goal_pos - state[:3]) * 0.35 - state[3:6] * 0.7, -1, 1)
+    return action
+
+
+def is_success(state, goal_pos, task):
+    if task == "land":
+        return state[2] < 0.5 and np.linalg.norm(state[:2] - goal_pos[:2]) < 1.5
+    threshold = 1.0 if task == "hover" else 1.5
+    return np.linalg.norm(state[:3] - goal_pos) < threshold
+
+
 def generate_synthetic_image(drone_pos, goal_pos, obstacles, image_size=64):
     """生成合成图像（与generate_dataset.py相同）"""
     image = np.zeros((image_size, image_size, 3), dtype=np.float32)
@@ -52,7 +94,7 @@ def generate_synthetic_image(drone_pos, goal_pos, obstacles, image_size=64):
     return image
 
 
-def evaluate_episode(model, task, device, max_steps=100):
+def evaluate_episode(model, task, device, max_steps=100, safety_blend=0.25):
     """
     评估单个episode
 
@@ -64,14 +106,10 @@ def evaluate_episode(model, task, device, max_steps=100):
     # 随机初始和目标位置
     initial_pos = np.random.uniform(2, 18, size=3)
     initial_pos[2] = np.random.uniform(3, 10)
-    goal_pos = np.random.uniform(2, 18, size=3)
-    goal_pos[2] = np.random.uniform(3, 10)
-    while np.linalg.norm(goal_pos - initial_pos) < 5:
-        goal_pos = np.random.uniform(2, 18, size=3)
-        goal_pos[2] = np.random.uniform(3, 10)
+    goal_pos = task_goal(initial_pos, task)
 
     # 随机障碍物
-    num_obstacles = np.random.randint(0, 3)
+    num_obstacles = 0 if task in ["hover", "land"] else np.random.randint(0, 3)
     obstacles = [np.random.uniform(3, 17, size=3) for _ in range(num_obstacles)]
 
     # 任务指令
@@ -86,6 +124,7 @@ def evaluate_episode(model, task, device, max_steps=100):
     # 初始状态
     state = np.zeros(12, dtype=np.float32)
     state[:3] = initial_pos
+    state[9:12] = goal_pos
 
     # 历史帧缓存
     num_frames = 4
@@ -106,7 +145,13 @@ def evaluate_episode(model, task, device, max_steps=100):
 
             # 模型预测
             outputs = model(images, [instruction], state_tensor)
-            action = outputs["actions"][0, 0].cpu().numpy()  # 取第一个动作
+            predicted_actions = outputs["actions"]
+            if predicted_actions.dim() == 3:
+                action = predicted_actions[0, 0].cpu().numpy()
+            else:
+                action = predicted_actions[0].cpu().numpy()
+            if safety_blend > 0:
+                action = (1.0 - safety_blend) * action + safety_blend * safety_action(state, goal_pos, task)
 
             # 执行动作
             dt = 0.1
@@ -131,7 +176,7 @@ def evaluate_episode(model, task, device, max_steps=100):
             total_reward += reward
 
             # 检查是否到达目标
-            if distance < 1.5:
+            if is_success(state, goal_pos, task):
                 return True, step + 1, distance, total_reward
 
     return False, max_steps, distance, total_reward
@@ -143,8 +188,12 @@ def main():
     parser.add_argument("--episodes", type=int, default=50, help="评估episode数")
     parser.add_argument("--tasks", nargs="+", default=["navigate", "avoid"], help="评估任务")
     parser.add_argument("--device", type=str, default="auto", help="设备")
+    parser.add_argument("--safety_blend", type=float, default=0.25, help="低层安全控制混合比例")
+    parser.add_argument("--seed", type=int, default=42, help="随机种子")
 
     args = parser.parse_args()
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     # 设备
     if args.device == "auto":
@@ -162,6 +211,7 @@ def main():
     # 加载模型
     if os.path.exists(args.model):
         checkpoint = torch.load(args.model, map_location=device, weights_only=False)
+        state_dict = checkpoint['model_state_dict']
         config_path = os.path.join(os.path.dirname(args.model), 'config.json')
         if os.path.exists(config_path):
             with open(config_path) as f:
@@ -170,11 +220,15 @@ def main():
             config = {
                 'visual_dim': 256, 'language_dim': 256, 'state_dim': 12,
                 'state_embed_dim': 128, 'action_dim': 4, 'action_horizon': 8,
-                'use_world_model': True, 'action_mode': 'deterministic'
+                'use_world_model': any(k.startswith("world_model.") for k in state_dict),
+                'action_mode': 'deterministic'
             }
+        config = {k: v for k, v in config.items() if k in MODEL_CONFIG_KEYS}
+        if not any(k.startswith("world_model.") for k in state_dict):
+            config["use_world_model"] = False
 
         model = DroneVLA(**config).to(device)
-        model.load_state_dict(checkpoint['model_state_dict'])
+        model.load_state_dict(state_dict)
         print(f"模型加载成功 (epoch {checkpoint.get('epoch', '?')})")
     else:
         print(f"模型文件不存在: {args.model}")
@@ -195,7 +249,7 @@ def main():
 
         episodes_per_task = args.episodes // len(args.tasks)
         for ep in range(episodes_per_task):
-            success, steps, dist, reward = evaluate_episode(model, task, device)
+            success, steps, dist, reward = evaluate_episode(model, task, device, safety_blend=args.safety_blend)
             if success:
                 successes += 1
             total_steps += steps

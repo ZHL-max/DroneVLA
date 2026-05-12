@@ -1,0 +1,11 @@
+{
+  "name": "Deeper Decoder",
+  "num_episodes": 500,
+  "epochs": 150,
+  "batch_size": 32,
+  "lr": 0.0003,
+  "use_attention": true,
+  "augment": true,
+  "deeper_decoder": true,
+  "description": "\u52a0\u6df1\u52a8\u4f5c\u89e3\u7801\u5668"
+}

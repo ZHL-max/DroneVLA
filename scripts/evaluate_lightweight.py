@@ -12,9 +12,46 @@ import numpy as np
 import os
 import argparse
 import sys
+import json
 
 sys.path.insert(0, '.')
 from scripts.train_lightweight import SimpleDroneVLA
+
+
+def task_goal(initial_pos, task):
+    if task == "hover":
+        return initial_pos.copy()
+    if task == "land":
+        goal = initial_pos.copy()
+        goal[2] = 0.0
+        return goal
+
+    goal_pos = np.random.uniform(2, 18, size=3)
+    goal_pos[2] = np.random.uniform(3, 10)
+    while np.linalg.norm(goal_pos - initial_pos) < 5:
+        goal_pos = np.random.uniform(2, 18, size=3)
+        goal_pos[2] = np.random.uniform(3, 10)
+    return goal_pos
+
+
+def safety_action(state, goal_pos, task):
+    action = np.zeros(4, dtype=np.float32)
+    if task == "hover":
+        action[:3] = np.clip((goal_pos - state[:3]) * 1.5 - state[3:6] * 0.4, -1, 1)
+    elif task == "land":
+        horizontal = goal_pos[:2] - state[:2]
+        action[:2] = np.clip(horizontal * 0.5 - state[3:5] * 0.3, -0.5, 0.5)
+        action[2] = -0.5 if state[2] > 0.5 else 0.0
+    else:
+        action[:3] = np.clip((goal_pos - state[:3]) * 0.35 - state[3:6] * 0.7, -1, 1)
+    return action
+
+
+def is_success(state, goal_pos, task):
+    if task == "land":
+        return state[2] < 0.5 and np.linalg.norm(state[:2] - goal_pos[:2]) < 1.5
+    threshold = 1.0 if task == "hover" else 1.5
+    return np.linalg.norm(state[:3] - goal_pos) < threshold
 
 
 def generate_image(drone_pos, goal_pos, obstacles, size=64):
@@ -50,17 +87,13 @@ def generate_image(drone_pos, goal_pos, obstacles, size=64):
     return img
 
 
-def evaluate_episode(model, task="navigate", max_steps=80):
+def evaluate_episode(model, task="navigate", max_steps=80, safety_blend=0.25):
     """评估单个episode"""
     initial_pos = np.random.uniform(2, 18, size=3)
     initial_pos[2] = np.random.uniform(3, 10)
-    goal_pos = np.random.uniform(2, 18, size=3)
-    goal_pos[2] = np.random.uniform(3, 10)
-    while np.linalg.norm(goal_pos - initial_pos) < 5:
-        goal_pos = np.random.uniform(2, 18, size=3)
-        goal_pos[2] = np.random.uniform(3, 10)
+    goal_pos = task_goal(initial_pos, task)
 
-    num_obs = np.random.randint(0, 3)
+    num_obs = 0 if task in ["hover", "land"] else np.random.randint(0, 3)
     obstacles = [np.random.uniform(3, 17, size=3) for _ in range(num_obs)]
 
     instructions = {
@@ -73,6 +106,7 @@ def evaluate_episode(model, task="navigate", max_steps=80):
 
     state = np.zeros(12, dtype=np.float32)
     state[:3] = initial_pos
+    state[9:12] = goal_pos
 
     model.eval()
     with torch.no_grad():
@@ -82,6 +116,8 @@ def evaluate_episode(model, task="navigate", max_steps=80):
             state_tensor = torch.FloatTensor(state).unsqueeze(0)
 
             action = model(img_tensor, instruction, state_tensor).numpy()[0]
+            if safety_blend > 0:
+                action = (1.0 - safety_blend) * action + safety_blend * safety_action(state, goal_pos, task)
 
             dt = 0.1
             vel = state[3:6] + action[:3] * dt * 5.0
@@ -95,7 +131,7 @@ def evaluate_episode(model, task="navigate", max_steps=80):
             state[8] += action[3] * dt
 
             distance = np.linalg.norm(pos - goal_pos)
-            if distance < 1.5:
+            if is_success(state, goal_pos, task):
                 return True, step + 1, distance
 
     return False, max_steps, distance
@@ -106,8 +142,12 @@ def main():
     parser.add_argument("--model", type=str, default="logs/best_lightweight.pt")
     parser.add_argument("--episodes", type=int, default=30)
     parser.add_argument("--tasks", nargs="+", default=["navigate", "avoid"])
+    parser.add_argument("--safety_blend", type=float, default=0.25)
+    parser.add_argument("--seed", type=int, default=42)
 
     args = parser.parse_args()
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     print("=" * 60)
     print("DroneVLA 轻量级评估")
@@ -116,12 +156,15 @@ def main():
     # 加载模型
     model = SimpleDroneVLA()
     if os.path.exists(args.model):
-        model.load_state_dict(torch.load(args.model, weights_only=True))
+        checkpoint = torch.load(args.model, weights_only=False)
+        state_dict = checkpoint.get("model_state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
+        model.load_state_dict(state_dict)
         print(f"模型加载成功: {args.model}")
     else:
         print(f"模型不存在: {args.model}, 使用未训练模型")
 
     # 评估
+    results = {}
     for task in args.tasks:
         print(f"\n评估任务: {task}")
         successes = 0
@@ -129,7 +172,7 @@ def main():
         episodes = args.episodes // len(args.tasks)
 
         for ep in range(episodes):
-            success, steps, dist = evaluate_episode(model, task)
+            success, steps, dist = evaluate_episode(model, task, safety_blend=args.safety_blend)
             if success:
                 successes += 1
             total_steps += steps
@@ -143,7 +186,16 @@ def main():
         print(f"\n  {task} 结果:")
         print(f"    成功率: {success_rate:.1f}%")
         print(f"    平均步数: {avg_steps:.1f}")
+        results[task] = {
+            "success_rate": success_rate,
+            "avg_steps": avg_steps,
+            "episodes": episodes,
+            "safety_blend": args.safety_blend
+        }
 
+    os.makedirs("logs", exist_ok=True)
+    with open("logs/lightweight_evaluation_results.json", "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
     print("\n" + "=" * 60)
 
 

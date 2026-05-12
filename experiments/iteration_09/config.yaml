@@ -1,0 +1,11 @@
+{
+  "name": "Curriculum Learning",
+  "num_episodes": 600,
+  "epochs": 150,
+  "batch_size": 32,
+  "lr": 0.0003,
+  "use_attention": true,
+  "augment": true,
+  "curriculum": true,
+  "description": "\u8bfe\u7a0b\u5b66\u4e60\uff1a\u4ece\u7b80\u5355\u5230\u590d\u6742"
+}

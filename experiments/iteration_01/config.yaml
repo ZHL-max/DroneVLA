@@ -1,0 +1,10 @@
+{
+  "name": "Baseline",
+  "num_episodes": 100,
+  "epochs": 50,
+  "batch_size": 32,
+  "lr": 0.001,
+  "use_attention": false,
+  "augment": false,
+  "description": "\u57fa\u7ebf\u6a21\u578b\uff0c\u57fa\u672c\u914d\u7f6e"
+}

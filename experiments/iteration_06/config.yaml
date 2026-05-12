@@ -1,0 +1,11 @@
+{
+  "name": "Learning Rate Tuning",
+  "num_episodes": 400,
+  "epochs": 120,
+  "batch_size": 32,
+  "lr": 0.0005,
+  "use_attention": true,
+  "augment": true,
+  "visual_dim": 384,
+  "description": "\u964d\u4f4e\u5b66\u4e60\u7387\uff0c\u589e\u52a0\u8bad\u7ec3\u8f6e\u6570"
+}

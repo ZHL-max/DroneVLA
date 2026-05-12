@@ -1,0 +1,14 @@
+{
+  "name": "Focus on Weak Tasks",
+  "num_episodes": 500,
+  "epochs": 120,
+  "batch_size": 32,
+  "lr": 0.0005,
+  "use_attention": true,
+  "augment": true,
+  "focus_tasks": [
+    "navigate",
+    "avoid"
+  ],
+  "description": "\u91cd\u70b9\u589e\u52a0navigate/avoid\u4efb\u52a1\u6570\u636e"
+}

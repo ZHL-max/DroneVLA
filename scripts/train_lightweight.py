@@ -20,6 +20,26 @@ import sys
 sys.path.insert(0, '.')
 
 
+VOCAB = {
+    "<pad>": 0, "<unk>": 1,
+    "hover": 2, "at": 3, "the": 4, "current": 5, "position": 6,
+    "stay": 7, "in": 8, "place": 9, "maintain": 10, "hold": 11,
+    "steady": 12, "this": 13, "location": 14,
+    "fly": 15, "to": 16, "red": 17, "building": 18, "navigate": 19,
+    "target": 20, "go": 21, "waypoint": 22, "move": 23, "destination": 24,
+    "follow": 25, "moving": 26, "object": 27, "track": 28, "keep": 29,
+    "following": 30, "vehicle": 31, "pursue": 32,
+    "avoid": 33, "obstacles": 34, "around": 35, "through": 36, "gap": 37,
+    "dodge": 38, "ahead": 39,
+    "land": 40, "designated": 41, "area": 42, "descend": 43, "landing": 44,
+    "pad": 45, "perform": 46, "a": 47, "gentle": 48, "safely": 49,
+    "on": 50, "ground": 51,
+    "take": 52, "off": 53, "from": 54, "ascend": 55, "altitude": 56,
+    "launch": 57, "and": 58, "reach": 59, "safe": 60, "height": 61,
+    "rise": 62, "operating": 63,
+}
+
+
 class SimpleDroneVLA(nn.Module):
     """轻量级DroneVLA模型，适合CPU训练"""
 
@@ -61,20 +81,15 @@ class SimpleDroneVLA(nn.Module):
             nn.Tanh()
         )
 
-        # 简单的分词器
-        self.word2idx = {}
-        self.next_idx = 0
+        self.word2idx = VOCAB
 
     def encode_instruction(self, instruction):
         """简单的词袋编码"""
         tokens = []
         for word in instruction.lower().split():
-            if word not in self.word2idx:
-                self.word2idx[word] = self.next_idx
-                self.next_idx += 1
-            tokens.append(self.word2idx[word])
+            tokens.append(self.word2idx.get(word, self.word2idx["<unk>"]))
         if not tokens:
-            tokens = [0]
+            tokens = [self.word2idx["<pad>"]]
         return torch.LongTensor(tokens)
 
     def forward(self, image, instruction, state):
@@ -95,9 +110,9 @@ class SimpleDroneVLA(nn.Module):
         tokens = [self.encode_instruction(inst) for inst in instruction]
         # 填充到相同长度
         max_len = max(len(t) for t in tokens)
-        padded = torch.zeros(B, max_len, dtype=torch.long)
+        padded = torch.zeros(B, max_len, dtype=torch.long, device=image.device)
         for i, t in enumerate(tokens):
-            padded[i, :len(t)] = t
+            padded[i, :len(t)] = t.to(image.device)
         lang_embed = self.language_encoder(padded)  # [B, seq_len, embed_dim]
         lang_feat = lang_embed.mean(dim=1)  # [B, embed_dim]
 
@@ -203,7 +218,12 @@ def main():
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model.state_dict(), os.path.join(args.save_dir, "best_lightweight.pt"))
+            torch.save({
+                "model_state_dict": model.state_dict(),
+                "vocab": VOCAB,
+                "epoch": epoch,
+                "best_val_loss": best_val_loss,
+            }, os.path.join(args.save_dir, "best_lightweight.pt"))
 
         if (epoch + 1) % 5 == 0:
             print(f"Epoch {epoch+1}/{args.epochs} | Train: {train_loss:.4f} | Val: {val_loss:.4f}")

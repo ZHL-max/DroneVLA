@@ -1,0 +1,10 @@
+{
+  "name": "Data Augmentation",
+  "num_episodes": 300,
+  "epochs": 80,
+  "batch_size": 32,
+  "lr": 0.001,
+  "use_attention": false,
+  "augment": true,
+  "description": "\u542f\u7528\u6570\u636e\u589e\u5f3a\uff08\u56fe\u50cf\u566a\u58f0+\u72b6\u6001\u6270\u52a8\uff09"
+}
